@@ -165,3 +165,18 @@ if st.session_state.messages:
             ai_response = generate_itinerary_response(st.session_state.messages)
             st.session_state.messages.append({"role": "assistant", "content": ai_response})
             st.rerun()
+    st.divider()
+
+    download_content = ""
+    for message in st.session_state.messages:
+        if message["role"] == "user":
+            download_content += f"ユーザーの入力:\n{message['content']}\n\n"
+        if message["role"] == "assistant":
+            download_content += f"AIの応答:\n{message['content']}\n\n"
+
+    st.download_button(
+        label="旅行プランをダウンロード",
+        data=download_content,
+        file_name="travel_plan.txt",
+        mime="text/plain"
+    )
