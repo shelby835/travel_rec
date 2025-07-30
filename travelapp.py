@@ -15,14 +15,17 @@ def generate_travel_suggestion(mood, companion, location_type, budget, duration,
         system_prompt = (
             "あなたは日本の優れた旅行コンシェルジュです。"
             "ユーザーの要望に基づいて、おすすめの旅行先を「3つ」提案してください。"
-            "必ず以下のキーを持つJSONオブジェクトのリストとして回答してください。\n"
-            "[\n"
+            "必ず'suggestions'というキーを持つ単一のJSONオブジェクトとして回答してください。"
+            "そのキーの値は、以下のキーを持つオブジェクトのリストです。\n"
+            "{\n"
+            '  "suggestions": [\n'
             "  {\n"
             '    "場所": "国、都道府県、具体的な地名",\n'
             '    "概要": "旅行先の特徴や魅力を簡潔に説明(100字程度)",\n'
             '    "理由": "なぜその場所をおすすめするのか、具体的な説明(150字程度)",\n'
             "   }\n"
             "]\n"
+            "}\n"
             "説明や前置きは一切不要です。JSONデータのみを出力してください。"
         )
 
@@ -44,12 +47,16 @@ def generate_travel_suggestion(mood, companion, location_type, budget, duration,
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_request}
             ],
-            max_tokens=800,
+            max_tokens=1000,
             temperature=0.7
         )
-        response_json = json.loads(response.choices[0].message.content)
-        return response_json.get("suggestions", [])
-    
+        response_content = response.choices[0].message.content
+        if response_content:
+            response_json = json.loads(response_content)
+            return response_json.get("suggestions", [])
+        else:
+             return None
+
     except Exception as e:
         st.error(f"提案の生成中にエラーが発生しました: {e}")
         return None
@@ -60,7 +67,7 @@ def generate_itinerary_response(messages):
         response = openai.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            max_tokens=1000,
+            max_tokens=1500,
             temperature=0.7
         )
         return response.choices[0].message.content
@@ -132,11 +139,11 @@ if st.session_state.suggestions:
         if st.button(f"「{location_name}」の詳細プランを見る", key=f"plan_button_{i}"):
             st.session_state.messages = []
             user_inputs = st.session_state.user_inputs
-            
+
             system_prompt = ("あなたはプロの優れた旅行プランナーです。"
                  "指定された場所と期間で、魅力的で具体的なモデルコースを提案してください。\n"
                 "タイムスケジュール（例：午前9時〜10時、午前10時〜11時など）と、"
-                 "各時間帯のアクティビティや訪問地、おすすめの食事場所などを具体的に記載してください。"
+                 "各時間帯のアクティビティや訪問地、おすすめの食事場所などをその魅力が伝わるように詳しく、そして具体的に記載してください。"
                         "**重要**: 提案するレストラン、ホテル、観光施設などの固有名詞には、必ずGoogle検索用のURLをMarkdown形式でリンク付けしてください。例: `[東京スカイツリー](https://www.google.com/search?q=東京スカイツリー)`\n"
                          "箇条書きと見出しを使って、分かりやすく記述してください。"
                     )
