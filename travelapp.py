@@ -73,6 +73,23 @@ def generate_itinerary_response(messages):
         return response.choices[0].message.content
     except Exception as e:
         return f"エラーが発生しました: {e}"
+def handle_plan_click(location_name):
+     """詳細プランボタンが押されたときの処理"""
+     st.session_state.selected_location = location_name
+     st.session_state.messages = []
+
+def clean_markdown_for_download(text):
+     """ダウンロード用にMarkdown記法をプレーンテキストに変換する"""
+    # Markdownリンク[テキスト](URL)をテキスト(URL)に変換
+     text = re.sub(r'\[(.*?)\]\((.*?)\)', r'\1 (\2)', text)
+    #  見出し記号(#)を削除
+     text = re.sub(r'#+\s*', '', text)
+    #  太字記号(**)を削除
+     text = text.replace('**', '')
+    #  箇条書き記号(* or -)を削除
+     text = re.sub(r'^\s*[\*\-]\s*', '', text, flags=re.MULTILINE)
+     return text
+
 
 st.title("旅行先提案アプリ")
 
@@ -82,6 +99,8 @@ if "user_inputs" not in st.session_state:
     st.session_state.user_inputs = {}
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if 'selected_location' not in st.session_state:
+    st.session_state.selected_location = None
 
 
 with st.sidebar:
@@ -125,6 +144,7 @@ with st.sidebar:
                 suggestion_list = generate_travel_suggestion(**st.session_state.user_inputs)
                 st.session_state.suggestions = suggestion_list
                 st.session_state.messages = []
+                st.session_state.selected_location = None
 
 if st.session_state.suggestions:
     st.markdown("### 提案された旅行先")
@@ -136,10 +156,16 @@ if st.session_state.suggestions:
         st.markdown(f"**理由**: {suggestion.get('理由', 'N/A')}")
 
         location_name = suggestion.get("場所")
-        if st.button(f"「{location_name}」の詳細プランを見る", key=f"plan_button_{i}"):
-            st.session_state.messages = []
+        if location_name:
+            st.button(f"「{location_name}」の詳細プランを見る",
+                       key=f"plan_button_{i}",
+                       on_click=handle_plan_click,
+                         args=(location_name,)
+                     )
+            
+if st.session_state.selected_location and not st.session_state.messages:
+            location_name = st.session_state.selected_location
             user_inputs = st.session_state.user_inputs
-
             system_prompt = ("あなたはプロの優れた旅行プランナーです。"
                              "**これから指定する「旅行先」は絶対に遵守してください。他の場所のプランを提案してはいけません。**\n"
                  "指定された場所と期間で、魅力的で具体的なモデルコースを提案してください。\n"
@@ -152,6 +178,7 @@ if st.session_state.suggestions:
                          system_prompt += "\n**重要**: 必ずペット同伴が可能な施設（レストラン、観光地、宿泊施設など）のみを選らんでください。ペット不可の場所は提案に含めないでください。"
 
             user_request = (
+                        f"旅行先は「{location_name}」に決定しました。"
                         f"現在地は「{user_inputs['residence']}」です。"
                         f"旅行のメンバーは「{user_inputs['companion']}」で、期間は「{user_inputs['duration']}」、"
                         f"一人当たりの予算は「{user_inputs['budget']}」です。"
@@ -183,12 +210,14 @@ if st.session_state.messages:
             st.rerun()
     st.divider()
 
-    download_content = ""
-    for message in st.session_state.messages:
-        if message["role"] == "user":
-            download_content += f"ユーザーの入力:\n{message['content']}\n\n"
-        if message["role"] == "assistant":
-            download_content += f"AIの応答:\n{message['content']}\n\n"
+    final_plan = ""
+    for message in reversed(st.session_state.messages):
+         if message["role"] == "assistant":
+            final_plan = message["content"]
+            break
+    
+    if final_plan:
+         download_content = clean_markdown_for_download(final_plan)
 
     st.download_button(
         label="旅行プランをダウンロード",
